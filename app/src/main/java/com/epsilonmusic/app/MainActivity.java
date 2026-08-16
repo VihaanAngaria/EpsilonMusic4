@@ -8,34 +8,36 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.FrameLayout;
 import android.view.View;
 import android.view.Window;
+import android.widget.FrameLayout;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.credentials.Credential;
 import androidx.credentials.CredentialManager;
 import androidx.credentials.CredentialManagerCallback;
 import androidx.credentials.CustomCredential;
-import androidx.credentials.exceptions.GetCredentialException;
 import androidx.credentials.GetCredentialRequest;
 import androidx.credentials.GetCredentialResponse;
+import androidx.credentials.exceptions.GetCredentialCancellationException;
+import androidx.credentials.exceptions.GetCredentialException;
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
 
 import java.lang.ref.WeakReference;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
 
     private static final String HOME_URL = "https://epsilonmusic.space-z.ai";
+    private static final String TAG = "EpsilonGoogleAuth";
     private EpsilonWebView webView;
     private CredentialManager credentialManager;
     private static WeakReference<WebView> webViewRef = new WeakReference<>(null);
@@ -110,17 +112,18 @@ public class MainActivity extends Activity {
 
     private void nativeGoogleSignIn() {
         runOnUiThread(() -> {
-        try {
+            Log.i(TAG, "Credential Manager launched");
+            try {
                 GetGoogleIdOption googleIdOption = new GetGoogleIdOption.Builder()
                         .setServerClientId(getString(R.string.default_web_client_id))
                         .setFilterByAuthorizedAccounts(false)
                         .setAutoSelectEnabled(false)
                         .build();
-    
+
                 GetCredentialRequest request = new GetCredentialRequest.Builder()
                         .addCredentialOption(googleIdOption)
                         .build();
-    
+
                 credentialManager.getCredentialAsync(
                         this,
                         request,
@@ -129,59 +132,105 @@ public class MainActivity extends Activity {
                         new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
                             @Override
                             public void onResult(@NonNull GetCredentialResponse result) {
-                                Credential credential = result.getCredential();
-    
-                                if (credential instanceof CustomCredential) {
-                                    CustomCredential custom = (CustomCredential) credential;
-    
-                                    if (GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
-                                            .equals(custom.getType())) {
-                                        try {
-                                            GoogleIdTokenCredential googleCredential =
-                                                    GoogleIdTokenCredential.createFrom(custom.getData());
-    
-                                            String token = googleCredential.getIdToken();
-                                            WebView w = webViewRef.get();
-                                            if (w != null) {
-                                                w.evaluateJavascript(
-                                                        "window.__epsilonGoogleNativeSuccess && " +
-                                                        "window.__epsilonGoogleNativeSuccess(" +
-                                                        quote(token) + ");",
-                                                        null
-                                                );
-                                            }
-                                            return;
-                                        } catch (Exception e) {
-                                            sendGoogleError(e.getMessage());
-                                            return;
-                                        }
-                                    }
-                                }
-    
-                                sendGoogleError("Google did not return a Google ID credential");
+                                handleGoogleCredential(result);
                             }
-    
+
                             @Override
                             public void onError(@NonNull GetCredentialException e) {
-                                sendGoogleError(e.getMessage());
+                                handleGoogleError(e);
                             }
                         }
                 );
             } catch (Exception e) {
-                sendGoogleError(e.getMessage());
+                Log.e(TAG, "Credential Manager request failed", e);
+                dispatchGoogleError("google-sign-in-failed", "Google sign-in could not be started.");
             }
         });
     }
 
-    private void sendGoogleError(String message) {
+    private void handleGoogleCredential(@NonNull GetCredentialResponse result) {
+        Log.i(TAG, "Credential received");
+        Credential credential = result.getCredential();
+
+        if (!(credential instanceof CustomCredential)) {
+            Log.e(TAG, "Unexpected credential type: " + credential.getType());
+            dispatchGoogleError(
+                    "unexpected-credential-type",
+                    "Google did not return a Google ID credential.");
+            return;
+        }
+
+        CustomCredential custom = (CustomCredential) credential;
+        if (!GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL.equals(custom.getType())) {
+            Log.e(TAG, "Credential type: " + custom.getType());
+            dispatchGoogleError(
+                    "unexpected-credential-type",
+                    "Google did not return a Google ID credential.");
+            return;
+        }
+        Log.i(TAG, "Credential type: " + GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL);
+
+        try {
+            GoogleIdTokenCredential googleCredential =
+                    GoogleIdTokenCredential.createFrom(custom.getData());
+
+            String idToken = googleCredential.getIdToken();
+            if (idToken == null || idToken.isEmpty()) {
+                Log.e(TAG, "Google ID token is empty");
+                dispatchGoogleError("empty-id-token", "Google did not return a valid ID token.");
+                return;
+            }
+
+            Log.i(TAG, "Google ID token received (token value never logged)");
+            dispatchGoogleSuccess(idToken);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to parse Google ID credential", e);
+            dispatchGoogleError("invalid-id-credential", "Google returned an invalid credential.");
+        }
+    }
+
+    private void handleGoogleError(@NonNull GetCredentialException e) {
+        if (e instanceof GetCredentialCancellationException) {
+            Log.i(TAG, "Google sign-in cancelled by user");
+            dispatchGoogleError("auth/cancelled", null);
+            return;
+        }
+        Log.e(TAG, "Google sign-in failed: " + e.getClass().getSimpleName());
+        dispatchGoogleError("google-sign-in-failed", "Google sign-in failed. Please try again.");
+    }
+
+    private void dispatchGoogleSuccess(String idToken) {
+        // Must be delivered with evaluateJavascript() on the UI thread.
         runOnUiThread(() -> {
             WebView w = webViewRef.get();
             if (w != null) {
                 w.evaluateJavascript(
-                    "window.__epsilonGoogleNativeError && " +
-                    "window.__epsilonGoogleNativeError(" + quote(message) + ");",
-                    null
+                        "window.__epsilonGoogleNativeSuccess && " +
+                        "window.__epsilonGoogleNativeSuccess(" +
+                        quote(idToken) + ");",
+                        null
                 );
+                Log.i(TAG, "JavaScript success callback dispatched");
+            } else {
+                Log.w(TAG, "WebView unavailable; cannot dispatch Google ID token");
+            }
+        });
+    }
+
+    private void dispatchGoogleError(String errorCode, String userMessage) {
+        runOnUiThread(() -> {
+            WebView w = webViewRef.get();
+            if (w != null) {
+                w.evaluateJavascript(
+                        "window.__epsilonGoogleNativeError && " +
+                        "window.__epsilonGoogleNativeError(" + quote(errorCode) + ");",
+                        null
+                );
+            } else {
+                Log.w(TAG, "WebView unavailable; could not dispatch native sign-in error");
+            }
+            if (userMessage != null) {
+                Toast.makeText(MainActivity.this, userMessage, Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -195,7 +244,9 @@ public class MainActivity extends Activity {
                 .replace("\r", "\\r")
                 .replace("<", "\\u003c")
                 .replace(">", "\\u003e")
-                .replace("&", "\\u0026") + "\"";
+                .replace("&", "\\u0026")
+                .replace("\u2028", "\\u2028")
+                .replace("\u2029", "\\u2029") + "\"";
     }
 
     public static WebView getWebView() {
@@ -245,7 +296,16 @@ public class MainActivity extends Activity {
         AndroidBridge(MainActivity activity) { this.activity = activity; }
 
         @JavascriptInterface
+        public boolean signInWithGoogle() {
+            // The Epsilon Music web app checks `typeof EpsilonAndroid.signInWithGoogle`
+            // and only skips its own Firebase popup/redirect when this returns true.
+            activity.nativeGoogleSignIn();
+            return true;
+        }
+
+        @JavascriptInterface
         public void googleSignIn() {
+            // Compat alias for older cached web pages.
             activity.nativeGoogleSignIn();
         }
 

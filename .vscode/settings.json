@@ -1,0 +1,8 @@
+{
+    "roo-cline.allowedCommands": [
+        "git log",
+        "git diff",
+        "git show",
+        ""
+    ]
+}
