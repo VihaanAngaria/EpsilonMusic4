@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Epsilon Music</string>
+    <!-- Replace with the Web OAuth client ID from Firebase/Google Cloud. -->
+    <string name="default_web_client_id">REPLACE_WITH_FIREBASE_WEB_CLIENT_ID.apps.googleusercontent.com</string>
+</resources>
