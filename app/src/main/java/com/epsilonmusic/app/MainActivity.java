@@ -98,11 +98,6 @@ public class MainActivity extends Activity {
         s.setSupportMultipleWindows(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
-        s.setUserAgentString(
-            "Mozilla/5.0 (Linux; Android 13; Pixel 7) " +
-            "AppleWebKit/537.36 (KHTML, like Gecko) " +
-            "Chrome/116.0.0.0 Mobile Safari/537.36"
-        );
 
         CookieManager cm = CookieManager.getInstance();
         cm.setAcceptCookie(true);
