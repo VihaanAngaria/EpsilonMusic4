@@ -29,7 +29,7 @@ import androidx.credentials.GetCredentialRequest;
 import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.exceptions.GetCredentialCancellationException;
 import androidx.credentials.exceptions.GetCredentialException;
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption;
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
 
 import java.lang.ref.WeakReference;
@@ -123,16 +123,19 @@ public class MainActivity extends Activity {
                         + " plausibleFormat=" + clientIdSeemsValid
                         + " (client ID value never logged)");
 
-                GetGoogleIdOption googleIdOption = new GetGoogleIdOption.Builder()
-                        .setServerClientId(serverClientId)
-                        .setFilterByAuthorizedAccounts(false)
-                        .setAutoSelectEnabled(false)
-                        .build();
+                // This is the explicit button flow recommended for a user-triggered
+                // "Sign in with Google" action. It avoids the no-credential path of
+                // the general credential picker when no saved/authorized credential exists.
+                GetSignInWithGoogleOption googleOption =
+                        new GetSignInWithGoogleOption.Builder()
+                                .setServerClientId(serverClientId)
+                                .build();
 
                 GetCredentialRequest request = new GetCredentialRequest.Builder()
-                        .addCredentialOption(googleIdOption)
+                        .addCredentialOption(googleOption)
                         .build();
 
+                Log.i(TAG, "[nativeGoogleSignIn] launching explicit Google Sign-In flow");
                 credentialManager.getCredentialAsync(
                         this,
                         request,
