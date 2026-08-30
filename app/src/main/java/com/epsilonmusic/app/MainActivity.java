@@ -148,14 +148,17 @@ public class MainActivity extends Activity {
 
                             @Override
                             public void onError(@NonNull GetCredentialException e) {
-                                Log.i(TAG, "[getCredentialAsync] onError() invoked");
+                                Log.e(TAG, "[getCredentialAsync] onError() invoked; class="
+                                        + e.getClass().getName()
+                                        + " message=" + String.valueOf(e.getMessage()));
                                 handleGoogleError(e);
                             }
                         }
                 );
             } catch (Exception e) {
                 Log.e(TAG, "[nativeGoogleSignIn] exception while launching Credential Manager request. "
-                        + "class=" + e.getClass().getName());
+                        + "class=" + e.getClass().getName()
+                        + " message=" + String.valueOf(e.getMessage()), e);
                 showGoogleErrorToast(e.getClass().getSimpleName());
                 dispatchGoogleError("google-sign-in-failed", null);
             }
@@ -191,10 +194,12 @@ public class MainActivity extends Activity {
                 dispatchGoogleError("empty-id-token", "Google did not return a valid ID token.");
                 return;
             }
+            Log.i(TAG, "[handleGoogleCredential] Google ID token received; dispatching to website");
             dispatchGoogleSuccess(idToken);
         } catch (Exception e) {
             Log.e(TAG, "[handleGoogleCredential] failed to parse Google ID credential. class="
-                    + e.getClass().getName());
+                    + e.getClass().getName()
+                    + " message=" + String.valueOf(e.getMessage()), e);
             showGoogleErrorToast(e.getClass().getSimpleName());
             dispatchGoogleError("invalid-id-credential", null);
         }
@@ -202,12 +207,16 @@ public class MainActivity extends Activity {
 
     private void handleGoogleError(@NonNull GetCredentialException e) {
         if (e instanceof GetCredentialCancellationException) {
+            Log.i(TAG, "[handleGoogleError] user cancelled Google Sign-In");
             dispatchGoogleError("auth/cancelled", null);
             return;
         }
-        Log.e(TAG, "[handleGoogleError] getCredential failed. class=" + e.getClass().getName());
-        showGoogleErrorToast(e.getClass().getSimpleName());
-        dispatchGoogleError("google-sign-in-failed", null);
+        String detail = e.getClass().getSimpleName();
+        Log.e(TAG, "[handleGoogleError] getCredential failed. class="
+                + e.getClass().getName()
+                + " message=" + String.valueOf(e.getMessage()), e);
+        showGoogleErrorToast(detail);
+        dispatchGoogleError("google-sign-in-failed", detail);
     }
 
     private void dispatchGoogleSuccess(String idToken) {
