@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        API 31+ overlay for AppTheme.
+
+        On Android 12+ the SplashScreen API draws the launcher icon
+        centred on a system-chosen (often white) circular background
+        for ~500ms before SplashActivity starts -- this is the
+        "white-bordered logo" flash the user reported.
+        windowDisablePreview=true (set in AppTheme.Base) does NOT
+        suppress this; the new API is independent.
+
+        This overlay re-declares `AppTheme` (same name -- Android
+        resource qualifiers cause the v31 version to win on API 31+)
+        inheriting from AppTheme.Base and adding three SplashScreen
+        attributes:
+
+          * windowSplashScreenBackground           = #000000
+          * windowSplashScreenIconBackgroundColor  = #000000
+          * windowSplashScreenAnimatedIcon         = @drawable/splash_icon_transparent
+
+        splash_icon_transparent is a 108dp fully-transparent vector,
+        so the system splash draws no icon inside its circular window.
+        Combined with the black background, the system splash reads as
+        a brief black screen that hands off seamlessly to the video
+        splash in SplashActivity.
+
+        Putting these attrs in values-v31/ (instead of values/) means
+        AAPT2 never sees them at minSdk 24 resolution, so the NewApi
+        lint check that was failing the build no longer fires.
+    -->
+    <style name="AppTheme" parent="@style/AppTheme.Base">
+        <item name="android:windowSplashScreenBackground">#000000</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_transparent</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#000000</item>
+    </style>
+
+</resources>
