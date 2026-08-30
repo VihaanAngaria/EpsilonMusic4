@@ -9,15 +9,18 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.View;
+import android.view.Window;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.view.View;
-import android.view.Window;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -39,6 +42,8 @@ public class MainActivity extends Activity {
 
     private static final String HOME_URL = "https://epsilonmusic.vercel.app";
     private static final String TAG = "EpsilonGoogleAuth";
+    private static final long SPLASH_DURATION_MS = 2100L;
+
     private EpsilonWebView webView;
     private CredentialManager credentialManager;
     private static WeakReference<WebView> webViewRef = new WeakReference<>(null);
@@ -67,16 +72,37 @@ public class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
         ));
+
+        // High-quality vector splash: the logo remains crisp at any screen density.
+        ImageView splashLogo = new ImageView(this);
+        splashLogo.setImageResource(R.drawable.ic_launcher_foreground);
+        splashLogo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        splashLogo.setAlpha(0f);
+        splashLogo.setScaleX(0.14f);
+        splashLogo.setScaleY(0.14f);
+        splashLogo.setContentDescription(null);
+
+        int splashSize = dpToPx(330);
+        FrameLayout.LayoutParams splashParams = new FrameLayout.LayoutParams(
+                splashSize,
+                splashSize,
+                Gravity.CENTER
+        );
+        root.addView(splashLogo, splashParams);
         setContentView(root);
 
+        // Start loading the website underneath the animation so there is no black
+        // gap after the splash completes.
         if (savedInstanceState == null) {
             webView.loadUrl(HOME_URL);
         } else {
             webView.restoreState(savedInstanceState);
         }
 
-        // Do not interrupt first launch with the Android 13+ notification permission
-        // dialog. Media playback will request it when appropriate instead.
+        playOpeningAnimation(splashLogo);
+
+        // Do not interrupt the opening animation with the Android 13+ notification
+        // permission dialog. Ask after the splash instead.
         if (Build.VERSION.SDK_INT >= 33 &&
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                         != PackageManager.PERMISSION_GRANTED) {
@@ -89,8 +115,35 @@ public class MainActivity extends Activity {
                             1001
                     );
                 }
-            }, 1500);
+            }, SPLASH_DURATION_MS + 500L);
         }
+    }
+
+    private void playOpeningAnimation(ImageView splashLogo) {
+        splashLogo.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(450L)
+                .setInterpolator(new AccelerateDecelerateInterpolator())
+                .withEndAction(() -> splashLogo.postDelayed(() ->
+                        splashLogo.animate()
+                                .alpha(0f)
+                                .setDuration(180L)
+                                .setInterpolator(new AccelerateDecelerateInterpolator())
+                                .withEndAction(() -> {
+                                    View parent = (View) splashLogo.getParent();
+                                    if (parent instanceof FrameLayout) {
+                                        ((FrameLayout) parent).removeView(splashLogo);
+                                    }
+                                })
+                                .start(),
+                        SPLASH_DURATION_MS - 450L - 180L))
+                .start();
+    }
+
+    private int dpToPx(int dp) {
+        return Math.round(dp * getResources().getDisplayMetrics().density);
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -176,6 +229,7 @@ public class MainActivity extends Activity {
     }
 
     private void handleGoogleCredential(@NonNull GetCredentialResponse result) {
+        Log.i(TAG, "[handleGoogleCredential] getCredential request SUCCEEDED");
         Credential credential = result.getCredential();
         String credentialType = credential.getType();
 
@@ -232,8 +286,8 @@ public class MainActivity extends Activity {
             WebView w = webViewRef.get();
             if (w != null && !webViewIsDestroyed(w)) {
                 w.evaluateJavascript(
-                        "window.__epsilonGoogleNativeSuccess && " +
-                        "window.__epsilonGoogleNativeSuccess(" + quote(idToken) + ");",
+                        "window.__epsilonGoogleNativeSuccess && window.__epsilonGoogleNativeSuccess(" +
+                                quote(idToken) + ");",
                         null
                 );
             } else {
@@ -247,8 +301,8 @@ public class MainActivity extends Activity {
             WebView w = webViewRef.get();
             if (w != null && !webViewIsDestroyed(w)) {
                 w.evaluateJavascript(
-                        "window.__epsilonGoogleNativeError && " +
-                        "window.__epsilonGoogleNativeError(" + quote(errorCode) + ");",
+                        "window.__epsilonGoogleNativeError && window.__epsilonGoogleNativeError(" +
+                                quote(errorCode) + ");",
                         null
                 );
             }
@@ -352,12 +406,14 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean signInWithGoogle() {
+            Log.i(TAG, "[signInWithGoogle] JavaScript invoked EpsilonAndroid.signInWithGoogle()");
             activity.nativeGoogleSignIn();
             return true;
         }
 
         @JavascriptInterface
         public void googleSignIn() {
+            Log.i(TAG, "[googleSignIn] JavaScript invoked legacy EpsilonAndroid.googleSignIn() alias");
             activity.nativeGoogleSignIn();
         }
 
