@@ -6,12 +6,12 @@
 
         On Android 12+ the SplashScreen API draws the launcher icon
         centred on a system-chosen (often white) circular background
-        for ~500ms before SplashActivity starts -- this is the
+        for ~500ms before SplashActivity starts. This is the
         "white-bordered logo" flash the user reported.
         windowDisablePreview=true (set in AppTheme.Base) does NOT
         suppress this; the new API is independent.
 
-        This overlay re-declares `AppTheme` (same name -- Android
+        This overlay re-declares `AppTheme` (same name; Android
         resource qualifiers cause the v31 version to win on API 31+)
         inheriting from AppTheme.Base and adding three SplashScreen
         attributes:
