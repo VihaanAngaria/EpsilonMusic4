@@ -10,6 +10,33 @@
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowDisablePreview">true</item>
+
+        <!--
+            Android 12+ (API 31+) SplashScreen API.
+
+            By default the system shows the launcher icon centred on a
+            system-chosen (often white) circular background for ~500ms
+            before our SplashActivity's video starts -- this is the
+            "white-bordered logo" flash the user reported.
+
+            We make the system splash visually invisible by:
+
+              1. Forcing its background to pure black, matching our video
+                 splash's first frame.
+              2. Pointing the animated icon at a fully transparent
+                 1x1 vector drawable (splash_icon_transparent) so nothing
+                 is drawn inside the circular window.
+
+            The result: the system splash reads as a brief black screen
+            that hands off seamlessly to our video animation.
+
+            On pre-API-31 devices these attributes are simply ignored,
+            and windowDisablePreview=true above continues to suppress the
+            legacy window preview.
+        -->
+        <item name="android:windowSplashScreenBackground">#000000</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_transparent</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#000000</item>
     </style>
 
 </resources>
