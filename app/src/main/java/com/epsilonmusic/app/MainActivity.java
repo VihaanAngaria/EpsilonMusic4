@@ -52,18 +52,10 @@ public class MainActivity extends Activity {
         window.setStatusBarColor(Color.BLACK);
         window.setNavigationBarColor(Color.BLACK);
 
-        if (Build.VERSION.SDK_INT >= 33 &&
-                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                        != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
-        }
-
         credentialManager = CredentialManager.create(this);
 
         webView = new EpsilonWebView(this);
-        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         configureWebView(webView);
-
         webView.addJavascriptInterface(new AndroidBridge(this), "EpsilonAndroid");
 
         webViewRef = new WeakReference<>(webView);
@@ -77,8 +69,28 @@ public class MainActivity extends Activity {
         ));
         setContentView(root);
 
-        if (savedInstanceState == null) webView.loadUrl(HOME_URL);
-        else webView.restoreState(savedInstanceState);
+        if (savedInstanceState == null) {
+            webView.loadUrl(HOME_URL);
+        } else {
+            webView.restoreState(savedInstanceState);
+        }
+
+        // Do not interrupt first launch with the Android 13+ notification permission
+        // dialog. Media playback will request it when appropriate instead.
+        if (Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+            webView.postDelayed(() -> {
+                if (!isFinishing() &&
+                        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                                != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(
+                            new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                            1001
+                    );
+                }
+            }, 1500);
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -123,8 +135,6 @@ public class MainActivity extends Activity {
                         + " plausibleFormat=" + clientIdSeemsValid
                         + " (client ID value never logged)");
 
-                // Explicit "Sign in with Google" button flow.
-                // googleid:1.1.1 requires the server client ID in the Builder constructor.
                 GetSignInWithGoogleOption googleOption =
                         new GetSignInWithGoogleOption.Builder(serverClientId)
                                 .build();
@@ -166,7 +176,6 @@ public class MainActivity extends Activity {
     }
 
     private void handleGoogleCredential(@NonNull GetCredentialResponse result) {
-        Log.i(TAG, "[handleGoogleCredential] getCredential request SUCCEEDED");
         Credential credential = result.getCredential();
         String credentialType = credential.getType();
 
@@ -187,8 +196,7 @@ public class MainActivity extends Activity {
         }
 
         try {
-            GoogleIdTokenCredential googleCredential =
-                    GoogleIdTokenCredential.createFrom(custom.getData());
+            GoogleIdTokenCredential googleCredential = GoogleIdTokenCredential.createFrom(custom.getData());
             String idToken = googleCredential.getIdToken();
             if (idToken == null || idToken.isEmpty()) {
                 dispatchGoogleError("empty-id-token", "Google did not return a valid ID token.");
@@ -344,14 +352,12 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean signInWithGoogle() {
-            Log.i(TAG, "[signInWithGoogle] JavaScript invoked EpsilonAndroid.signInWithGoogle()");
             activity.nativeGoogleSignIn();
             return true;
         }
 
         @JavascriptInterface
         public void googleSignIn() {
-            Log.i(TAG, "[googleSignIn] JavaScript invoked legacy EpsilonAndroid.googleSignIn() alias");
             activity.nativeGoogleSignIn();
         }
 
