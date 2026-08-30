@@ -123,12 +123,10 @@ public class MainActivity extends Activity {
                         + " plausibleFormat=" + clientIdSeemsValid
                         + " (client ID value never logged)");
 
-                // This is the explicit button flow recommended for a user-triggered
-                // "Sign in with Google" action. It avoids the no-credential path of
-                // the general credential picker when no saved/authorized credential exists.
+                // Explicit "Sign in with Google" button flow.
+                // googleid:1.1.1 requires the server client ID in the Builder constructor.
                 GetSignInWithGoogleOption googleOption =
-                        new GetSignInWithGoogleOption.Builder()
-                                .setServerClientId(serverClientId)
+                        new GetSignInWithGoogleOption.Builder(serverClientId)
                                 .build();
 
                 GetCredentialRequest request = new GetCredentialRequest.Builder()
@@ -144,17 +142,20 @@ public class MainActivity extends Activity {
                         new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
                             @Override
                             public void onResult(@NonNull GetCredentialResponse result) {
+                                Log.i(TAG, "[getCredentialAsync] onResult() -> request succeeded");
                                 handleGoogleCredential(result);
                             }
 
                             @Override
                             public void onError(@NonNull GetCredentialException e) {
+                                Log.i(TAG, "[getCredentialAsync] onError() invoked");
                                 handleGoogleError(e);
                             }
                         }
                 );
             } catch (Exception e) {
-                Log.e(TAG, "[nativeGoogleSignIn] exception: " + e.getClass().getName());
+                Log.e(TAG, "[nativeGoogleSignIn] exception while launching Credential Manager request. "
+                        + "class=" + e.getClass().getName());
                 showGoogleErrorToast(e.getClass().getSimpleName());
                 dispatchGoogleError("google-sign-in-failed", null);
             }
@@ -162,20 +163,29 @@ public class MainActivity extends Activity {
     }
 
     private void handleGoogleCredential(@NonNull GetCredentialResponse result) {
+        Log.i(TAG, "[handleGoogleCredential] getCredential request SUCCEEDED");
         Credential credential = result.getCredential();
+        String credentialType = credential.getType();
+
         if (!(credential instanceof CustomCredential)) {
-            dispatchGoogleError("unexpected-credential-type", "Google did not return a Google ID credential.");
+            Log.e(TAG, "[handleGoogleCredential] unexpected credential type: " + credentialType);
+            dispatchGoogleError("unexpected-credential-type",
+                    "Google did not return a Google ID credential.");
             return;
         }
 
         CustomCredential custom = (CustomCredential) credential;
         if (!GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL.equals(custom.getType())) {
-            dispatchGoogleError("unexpected-credential-type", "Google did not return a Google ID credential.");
+            Log.e(TAG, "[handleGoogleCredential] credential type is not a Google ID token: "
+                    + custom.getType());
+            dispatchGoogleError("unexpected-credential-type",
+                    "Google did not return a Google ID credential.");
             return;
         }
 
         try {
-            GoogleIdTokenCredential googleCredential = GoogleIdTokenCredential.createFrom(custom.getData());
+            GoogleIdTokenCredential googleCredential =
+                    GoogleIdTokenCredential.createFrom(custom.getData());
             String idToken = googleCredential.getIdToken();
             if (idToken == null || idToken.isEmpty()) {
                 dispatchGoogleError("empty-id-token", "Google did not return a valid ID token.");
@@ -183,6 +193,8 @@ public class MainActivity extends Activity {
             }
             dispatchGoogleSuccess(idToken);
         } catch (Exception e) {
+            Log.e(TAG, "[handleGoogleCredential] failed to parse Google ID credential. class="
+                    + e.getClass().getName());
             showGoogleErrorToast(e.getClass().getSimpleName());
             dispatchGoogleError("invalid-id-credential", null);
         }
@@ -193,6 +205,7 @@ public class MainActivity extends Activity {
             dispatchGoogleError("auth/cancelled", null);
             return;
         }
+        Log.e(TAG, "[handleGoogleError] getCredential failed. class=" + e.getClass().getName());
         showGoogleErrorToast(e.getClass().getSimpleName());
         dispatchGoogleError("google-sign-in-failed", null);
     }
@@ -202,9 +215,12 @@ public class MainActivity extends Activity {
             WebView w = webViewRef.get();
             if (w != null && !webViewIsDestroyed(w)) {
                 w.evaluateJavascript(
-                        "window.__epsilonGoogleNativeSuccess && window.__epsilonGoogleNativeSuccess(" + quote(idToken) + ");",
+                        "window.__epsilonGoogleNativeSuccess && " +
+                        "window.__epsilonGoogleNativeSuccess(" + quote(idToken) + ");",
                         null
                 );
+            } else {
+                Log.w(TAG, "[dispatchGoogleSuccess] WebView unavailable or destroyed");
             }
         });
     }
@@ -214,7 +230,8 @@ public class MainActivity extends Activity {
             WebView w = webViewRef.get();
             if (w != null && !webViewIsDestroyed(w)) {
                 w.evaluateJavascript(
-                        "window.__epsilonGoogleNativeError && window.__epsilonGoogleNativeError(" + quote(errorCode) + ");",
+                        "window.__epsilonGoogleNativeError && " +
+                        "window.__epsilonGoogleNativeError(" + quote(errorCode) + ");",
                         null
                 );
             }
@@ -318,12 +335,14 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean signInWithGoogle() {
+            Log.i(TAG, "[signInWithGoogle] JavaScript invoked EpsilonAndroid.signInWithGoogle()");
             activity.nativeGoogleSignIn();
             return true;
         }
 
         @JavascriptInterface
         public void googleSignIn() {
+            Log.i(TAG, "[googleSignIn] JavaScript invoked legacy EpsilonAndroid.googleSignIn() alias");
             activity.nativeGoogleSignIn();
         }
 
