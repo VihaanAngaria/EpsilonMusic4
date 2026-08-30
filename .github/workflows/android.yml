@@ -60,7 +60,7 @@ jobs:
           echo "APK: app/build/outputs/apk/debug/app-debug.apk"
           echo
           echo "SHA-1 / SHA-256 of the exact APK certificate:"
-          apksigner verify --print-certs app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk
           echo
           echo "Register the SHA-1 fingerprint above in Firebase Console -> Project Settings -> Your apps -> Android app."
 
