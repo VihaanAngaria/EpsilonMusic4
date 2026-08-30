@@ -2,17 +2,13 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000"
-    android:gravity="center">
+    android:background="#000000">
 
-    <ImageView
-        android:id="@+id/splash_logo"
-        android:layout_width="220dp"
-        android:layout_height="220dp"
+    <VideoView
+        android:id="@+id/splash_video"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:layout_gravity="center"
-        android:adjustViewBounds="true"
-        android:contentDescription="Epsilon Music"
-        android:src="@drawable/ic_launcher_foreground"
-        android:scaleType="fitCenter" />
+        android:keepScreenOn="true" />
 
 </FrameLayout>
